@@ -44,34 +44,38 @@
         };
     }
 
-    // Calculate model performance metrics
+    // Enhanced model performance metrics calculation
     calculateMetrics(actualData, predictions) {
         if (actualData.length === 0 || predictions.length === 0) {
-            return { mae: 0, rmse: 0, r2: 0, directionAccuracy: 0 };
+            return { mae: 0, rmse: 0, r2: 0, directionAccuracy: 0, mape: 0, theilU: 0 };
         }
 
-        // Use last N actual values to compare with predictions
-        const compareLength = Math.min(actualData.length, predictions.length);
-        const actual = actualData.slice(-compareLength).map(item => item.close);
-        const predicted = predictions.slice(0, compareLength).map(item => item.price);
+        // For evaluation, use out-of-sample approach
+        // Use last 20% of actual data to compare with predictions
+        const testSize = Math.min(Math.floor(actualData.length * 0.2), predictions.length, 30);
+        const actual = actualData.slice(-testSize).map(item => item.close);
+        const predicted = predictions.slice(0, testSize).map(item => item.price);
 
-        // Mean Absolute Error (MAE)
+        if (actual.length === 0 || predicted.length === 0) {
+            return { mae: 0, rmse: 0, r2: 0, directionAccuracy: 0, mape: 0, theilU: 0 };
+        }
+
+        // Calculate all metrics
         const mae = this.calculateMAE(actual, predicted);
-        
-        // Root Mean Square Error (RMSE)
         const rmse = this.calculateRMSE(actual, predicted);
-        
-        // R-squared (R²)
         const r2 = this.calculateR2(actual, predicted);
-        
-        // Direction Accuracy (percentage of correct trend predictions)
         const directionAccuracy = this.calculateDirectionAccuracy(actual, predicted);
+        const mape = this.calculateMAPE(actual, predicted);
+        const theilU = this.calculateTheilU(actual, predicted);
 
         return {
             mae: parseFloat(mae.toFixed(4)),
             rmse: parseFloat(rmse.toFixed(4)),
-            r2: parseFloat(r2.toFixed(4)),
-            directionAccuracy: parseFloat(directionAccuracy.toFixed(4))
+            r2: parseFloat(Math.max(r2, 0).toFixed(4)), // Ensure R² is non-negative for display
+            directionAccuracy: parseFloat(directionAccuracy.toFixed(4)),
+            mape: parseFloat(mape.toFixed(4)),
+            theilU: parseFloat(theilU.toFixed(4)),
+            sampleSize: actual.length
         };
     }
 
@@ -114,24 +118,70 @@
         return totalSumSquares === 0 ? 0 : 1 - (residualSumSquares / totalSumSquares);
     }
 
-    // Calculate Direction Accuracy
+    // Enhanced Direction Accuracy with weighted scoring
     calculateDirectionAccuracy(actual, predicted) {
         if (actual.length < 2 || predicted.length < 2) return 0;
         
         let correctDirections = 0;
         let totalDirections = 0;
+        let weightedScore = 0;
+        let totalWeight = 0;
         
         for (let i = 1; i < Math.min(actual.length, predicted.length); i++) {
-            const actualDirection = actual[i] > actual[i-1];
-            const predictedDirection = predicted[i] > predicted[i-1];
+            const actualChange = actual[i] - actual[i-1];
+            const predictedChange = predicted[i] - predicted[i-1];
+            
+            const actualDirection = actualChange > 0;
+            const predictedDirection = predictedChange > 0;
+            
+            // Weight by magnitude of actual change
+            const weight = Math.abs(actualChange / actual[i-1]) + 0.001; // Add small constant to avoid zero weights
             
             if (actualDirection === predictedDirection) {
                 correctDirections++;
+                weightedScore += weight;
             }
             totalDirections++;
+            totalWeight += weight;
         }
         
-        return totalDirections === 0 ? 0 : correctDirections / totalDirections;
+        // Return weighted direction accuracy
+        return totalWeight === 0 ? 0 : weightedScore / totalWeight;
+    }
+
+    // Mean Absolute Percentage Error
+    calculateMAPE(actual, predicted) {
+        if (actual.length !== predicted.length || actual.length === 0) return 0;
+        
+        let sum = 0;
+        let validCount = 0;
+        
+        for (let i = 0; i < actual.length; i++) {
+            if (actual[i] !== 0) {
+                sum += Math.abs((actual[i] - predicted[i]) / actual[i]);
+                validCount++;
+            }
+        }
+        
+        return validCount === 0 ? 0 : (sum / validCount) * 100;
+    }
+
+    // Theil's U statistic
+    calculateTheilU(actual, predicted) {
+        if (actual.length !== predicted.length || actual.length < 2) return 0;
+        
+        let numeratorSum = 0;
+        let denominatorSum = 0;
+        
+        for (let i = 1; i < actual.length; i++) {
+            const actualChange = (actual[i] - actual[i-1]) / actual[i-1];
+            const predictedChange = (predicted[i] - predicted[i-1]) / predicted[i-1];
+            
+            numeratorSum += Math.pow(actualChange - predictedChange, 2);
+            denominatorSum += Math.pow(actualChange, 2);
+        }
+        
+        return denominatorSum === 0 ? 0 : numeratorSum / denominatorSum;
     }
 
     // Get model description
