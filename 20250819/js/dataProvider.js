@@ -82,7 +82,7 @@ class StockDataProvider {
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const response = await fetch(`https://api.finmindtrade.com/api/v4/data`, {
+        const response = await fetch('https://api.finmindtrade.com/api/v4/data', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
