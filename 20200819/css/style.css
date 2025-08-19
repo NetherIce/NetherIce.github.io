@@ -1,0 +1,214 @@
+/* Custom CSS for AI Stock Prediction System */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: #374151;
+}
+
+/* Chart Container Styling */
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 400px;
+}
+
+.chart-container canvas {
+    max-width: 100%;
+    height: 100% !important;
+}
+
+/* Custom Button Hover Effects */
+.btn-analyze {
+    background: linear-gradient(135deg, #3B82F6, #1E40AF);
+    transition: all 0.3s ease;
+}
+
+.btn-analyze:hover {
+    background: linear-gradient(135deg, #1E40AF, #1E3A8A);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+}
+
+/* Loading Animation */
+.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3B82F6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Status Message Animations */
+.status-enter {
+    opacity: 0;
+    transform: translateY(-10px);
+    animation: slideInDown 0.3s ease forwards;
+}
+
+@keyframes slideInDown {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Table Styling */
+#stockDataTable {
+    font-size: 0.875rem;
+}
+
+#stockDataTable tbody tr:hover {
+    background-color: #F9FAFB;
+}
+
+/* Metric Cards Hover Effect */
+.metric-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom Scrollbar */
+.overflow-x-auto::-webkit-scrollbar {
+    height: 6px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+    background: #F3F4F6;
+    border-radius: 3px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #D1D5DB;
+    border-radius: 3px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #9CA3AF;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    .chart-container {
+        height: 300px;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+    }
+    
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Chart.js Custom Tooltip Styling */
+.chartjs-tooltip {
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 6px;
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    opacity: 1;
+    pointer-events: none;
+    position: absolute;
+    transform: translate(-50%, 0);
+    transition: all 0.1s ease;
+}
+
+/* Success/Error Message Styling */
+.message-success {
+    background-color: #D1FAE5;
+    border-color: #A7F3D0;
+    color: #065F46;
+}
+
+.message-error {
+    background-color: #FEE2E2;
+    border-color: #FECACA;
+    color: #991B1B;
+}
+
+.message-warning {
+    background-color: #FEF3C7;
+    border-color: #FDE68A;
+    color: #92400E;
+}
+
+/* Animation for metrics update */
+.metric-update {
+    animation: pulse 0.5s ease-in-out;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Custom Select Styling */
+select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+}
+
+/* Focus states */
+input:focus,
+select:focus,
+button:focus {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
+}
+
+/* Header gradient */
+header {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+}
+
+/* Footer styling */
+footer {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+}
+
+/* Card shadows */
+.shadow-md {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-lg {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
