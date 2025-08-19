@@ -8,8 +8,7 @@ class StockDataProvider {
             alphavantage: 'your_alphavantage_api_key',
             iex: 'your_iex_api_key'
         };
-        this.finmindToken = 'your_finmind_token';
-        this.stockDataPath = './Stock_data/'; // 本地CSV文件路徑
+        this.finmindToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyNS0wOC0xOSAxMDo0MDozOCIsInVzZXJfaWQiOiJOZXRoZXJJY2UiLCJpcCI6IjIwMy42NC4xMDUuMTQ5IiwiZXhwIjoxNzU2MTc2MDM4fQ.3e0U1SI_QIij8de3QK3DTmXwkDXOLHXM3Vs48Qa2CYs';
     }
 
     // Get stock data with caching
@@ -24,16 +23,11 @@ class StockDataProvider {
         try {
             let data;
             
-            // 從本地CSV文件讀取數據
-            const stockCode = symbol.replace('.TW', '');
-            
-            // 判斷是台股還是美股
-            if (/^\d+$/.test(stockCode)) {
-                // 台股 (數字檔名)
-                data = await this.readTaiwanStockCSV(stockCode, days);
+            // Determine if it's Taiwan stock or US stock
+            if (symbol.includes('.TW')) {
+                data = await this.getTaiwanStockData(symbol, days);
             } else {
-                // 美股 (英文檔名)
-                data = await this.readUSStockCSV(symbol, days);
+                data = await this.getUSStockData(symbol, days);
             }
 
             // Cache the result
@@ -45,88 +39,156 @@ class StockDataProvider {
             return data;
         } catch (error) {
             console.error('Error fetching stock data:', error);
-            // Fallback to generated data if CSV reading fails
+            // Fallback to generated data if API fails
             return this.generateFallbackData(symbol, days);
         }
     }
 
-    // 讀取台股CSV文件
-    async readTaiwanStockCSV(stockCode, days) {
+    // Get Taiwan stock data from FinMind or yfinance
+    async getTaiwanStockData(symbol, days) {
+        // Try FinMind API first
         try {
-            const response = await fetch(`${this.stockDataPath}${stockCode}.csv`);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch CSV file: ${response.status}`);
-            }
-            
-            const csvText = await response.text();
-            const lines = csvText.split('\n');
-            
-            // 跳過標題行
-            const dataLines = lines.slice(1);
-            
-            // 解析CSV數據
-            const data = dataLines
-                .filter(line => line.trim() !== '')
-                .map(line => {
-                    const columns = line.split(',');
-                    return {
-                        date: columns[0],
-                        open: parseFloat(columns[4]),
-                        high: parseFloat(columns[5]),
-                        low: parseFloat(columns[6]),
-                        close: parseFloat(columns[7]),
-                        volume: parseInt(columns[2])
-                    };
-                })
-                .sort((a, b) => new Date(a.date) - new Date(b.date));
-            
-            // 只返回最近的days天數據
-            return data.slice(-days);
+            return await this.getFinMindData(symbol, days);
         } catch (error) {
-            console.error(`Error reading Taiwan stock CSV: ${error.message}`);
-            throw error;
+            console.warn('FinMind API failed, trying yfinance alternative');
+            return await this.getYFinanceAlternative(symbol, days);
         }
     }
 
-    // 讀取美股CSV文件
-    async readUSStockCSV(symbol, days) {
-        try {
-            const response = await fetch(`${this.stockDataPath}${symbol}.csv`);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch CSV file: ${response.status}`);
+    // Get US stock data
+    async getUSStockData(symbol, days) {
+        // Try multiple sources for reliability
+        const sources = [
+            () => this.getFinnhubData(symbol, days),
+            () => this.getAlphaVantageData(symbol, days),
+            () => this.getYFinanceAlternative(symbol, days)
+        ];
+
+        for (const source of sources) {
+            try {
+                return await source();
+            } catch (error) {
+                console.warn(`Data source failed: ${error.message}`);
+                continue;
             }
-            
-            const csvText = await response.text();
-            const lines = csvText.split('\n');
-            
-            // 美股CSV格式不同，需要跳過前3行
-            const dataLines = lines.slice(3);
-            
-            // 解析CSV數據
-            const data = dataLines
-                .filter(line => line.trim() !== '')
-                .map(line => {
-                    const columns = line.split(',');
-                    return {
-                        date: columns[0],
-                        open: parseFloat(columns[4]),
-                        high: parseFloat(columns[2]),
-                        low: parseFloat(columns[3]),
-                        close: parseFloat(columns[1]),
-                        volume: parseInt(columns[5])
-                    };
-                })
-                .sort((a, b) => new Date(a.date) - new Date(b.date));
-            
-            // 只返回最近的days天數據
-            return data.slice(-days);
-        } catch (error) {
-            console.error(`Error reading US stock CSV: ${error.message}`);
-            throw error;
         }
+
+        throw new Error('All data sources failed');
     }
 
-    // Generate fallback data when CSV reading fails
+    // FinMind API for Taiwan stocks
+    async getFinMindData(symbol, days) {
+        const stockCode = symbol.replace('.TW', '');
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const response = await fetch(`https://api.finmindtrade.com/api/v4/data`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                dataset: 'TaiwanStockPrice',
+                data_id: stockCode,
+                start_date: startDate,
+                end_date: endDate,
+                token: this.finmindToken
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`FinMind API error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        return this.transformFinMindData(result.data);
+    }
+
+    // Transform FinMind data to our format
+    transformFinMindData(data) {
+        return data.map(item => ({
+            date: item.date,
+            open: parseFloat(item.open),
+            high: parseFloat(item.max),
+            low: parseFloat(item.min),
+            close: parseFloat(item.close),
+            volume: parseInt(item.Trading_Volume)
+        })).sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    // Finnhub API for US stocks
+    async getFinnhubData(symbol, days) {
+        const endTimestamp = Math.floor(Date.now() / 1000);
+        const startTimestamp = endTimestamp - (days * 24 * 60 * 60);
+
+        const response = await fetch(
+            `https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=D&from=${startTimestamp}&to=${endTimestamp}&token=${this.apiKeys.finnhub}`
+        );
+
+        if (!response.ok) {
+            throw new Error(`Finnhub API error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        return this.transformFinnhubData(result);
+    }
+
+    // Transform Finnhub data to our format
+    transformFinnhubData(data) {
+        if (!data.c || data.s !== 'ok') {
+            throw new Error('Invalid Finnhub data response');
+        }
+
+        return data.t.map((timestamp, index) => ({
+            date: new Date(timestamp * 1000).toISOString().split('T')[0],
+            open: data.o[index],
+            high: data.h[index],
+            low: data.l[index],
+            close: data.c[index],
+            volume: data.v[index]
+        })).sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    // Alpha Vantage API backup
+    async getAlphaVantageData(symbol, days) {
+        const response = await fetch(
+            `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${this.apiKeys.alphavantage}`
+        );
+
+        if (!response.ok) {
+            throw new Error(`Alpha Vantage API error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        return this.transformAlphaVantageData(result['Time Series (Daily)'], days);
+    }
+
+    // Transform Alpha Vantage data
+    transformAlphaVantageData(data, days) {
+        if (!data) {
+            throw new Error('Invalid Alpha Vantage data response');
+        }
+
+        const dates = Object.keys(data).sort().slice(-days);
+        return dates.map(date => ({
+            date: date,
+            open: parseFloat(data[date]['1. open']),
+            high: parseFloat(data[date]['2. high']),
+            low: parseFloat(data[date]['3. low']),
+            close: parseFloat(data[date]['4. close']),
+            volume: parseInt(data[date]['5. volume'])
+        }));
+    }
+
+    // YFinance alternative using proxy service
+    async getYFinanceAlternative(symbol, days) {
+        // This would require a proxy service since yfinance is Python-based
+        // For now, we'll use a mock implementation
+        console.warn('YFinance alternative not implemented, using fallback data');
+        return this.generateFallbackData(symbol, days);
+    }
+
+    // Generate fallback data when APIs fail
     generateFallbackData(symbol, days) {
         console.warn(`Generating fallback data for ${symbol}`);
         
@@ -240,6 +302,29 @@ class StockDataProvider {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+
+    // Get news sentiment data (placeholder for future implementation)
+    async getNewsSentiment(symbol) {
+        // This would integrate with news APIs and sentiment analysis
+        return {
+            sentiment_score: 0.1, // -1 to 1
+            news_count: 15,
+            positive_ratio: 0.6,
+            negative_ratio: 0.2,
+            neutral_ratio: 0.2
+        };
+    }
+
+    // Get financial data (placeholder for future implementation)
+    async getFinancialData(symbol) {
+        // This would get earnings, revenue, etc.
+        return {
+            pe_ratio: 25.5,
+            revenue_growth: 0.12,
+            profit_margin: 0.25,
+            debt_to_equity: 0.4
+        };
     }
 
     // Clear cache
